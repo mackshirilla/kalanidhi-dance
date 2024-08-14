@@ -1,0 +1,9 @@
+{
+  "webflowSubdomain": "kalanidhi-dance-1b70b4",
+  "port": 3020,
+  "source": "./src/app.ts",
+  "dist": "./dist",
+  "scriptList": ["app.js"],
+  "scriptAttribute": "xa-script"
+}
+
