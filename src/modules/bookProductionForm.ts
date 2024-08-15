@@ -11,12 +11,32 @@ export const bookProductionFormSubmissionFn = () => {
     Email: string;
     Production: string;
     Message: string;
+    "First-Name-2"?: string; // These fields are optional but will be validated
+    "Last-Name-2"?: string;
+    Company?: string;
+    Field?: string;
   }>("#bookProductionForm");
 
   // Intercept Webflow form submission and prevent it
   myForm.onFormSubmit((data, event) => {
     // Prevent the default form submission
     event.preventDefault();
+
+    // Check if any of the hidden fields have values (honeypot fields)
+    if (
+      data["First-Name-2"] ||
+      data["Last-Name-2"] ||
+      data.Company ||
+      data.Field
+    ) {
+      // If any honeypot field contains data, show an error and prevent form submission
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Form validation failed. Please try again.",
+      });
+      return; // Exit the function to stop the form from being submitted
+    }
 
     // Execute reCAPTCHA v3 and get the token
     grecaptcha.ready(function () {
