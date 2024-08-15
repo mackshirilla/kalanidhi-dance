@@ -13,8 +13,8 @@ export const bookProductionFormSubmissionFn = () => {
     Message: string;
     "First-Name-2"?: string; // These fields are optional but will be validated
     "Last-Name-2"?: string;
-    Company?: string;
-    Field?: string;
+    "Company-2"?: string;
+    field?: string;
   }>("#bookProductionForm");
 
   // Intercept Webflow form submission and prevent it
@@ -26,8 +26,8 @@ export const bookProductionFormSubmissionFn = () => {
     if (
       data["First-Name-2"] ||
       data["Last-Name-2"] ||
-      data.Company ||
-      data.Field
+      data["Company-2"] ||
+      data.field
     ) {
       // If any honeypot field contains data, show an error and prevent form submission
       myForm.showErrorState();
