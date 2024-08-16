@@ -3,6 +3,10 @@ declare var grecaptcha: any;
 
 // Define the form submission logic as a function
 export const bookProductionFormSubmissionFn = () => {
+  // Store the time when the form is loaded
+  const formLoadTime = Date.now();
+  console.log("Form loaded at:", formLoadTime); // Log the form load time
+
   // Initialize a new instance of WFFormComponent for the form
   const myForm = new WFFormComponent<{
     "First-Name": string;
@@ -11,41 +15,120 @@ export const bookProductionFormSubmissionFn = () => {
     Email: string;
     Production: string;
     Message: string;
-    "First-Name-2"?: string; // These fields are optional but will be validated
-    "Last-Name-2"?: string;
-    "Company-2"?: string;
-    field?: string;
+    Company?: string; // Honeypot field
   }>("#bookProductionForm");
+
+  // Flag to detect interaction with form fields
+  let formInteraction = false;
+
+  // Detect interaction with key form fields (like typing or focus)
+  const formFields = [
+    "First-Name",
+    "Last-Name",
+    "Phone-Number",
+    "Email",
+    "Production",
+    "Message",
+  ];
+
+  formFields.forEach((field) => {
+    const fieldElement = document.querySelector(`#${field}`);
+    if (fieldElement) {
+      // Track focus and input events to detect user interaction
+      fieldElement.addEventListener("focus", () => {
+        formInteraction = true;
+        console.log(`User focused on field: ${field}`);
+      });
+      fieldElement.addEventListener("input", () => {
+        formInteraction = true;
+        console.log(`User interacted with field: ${field}`);
+      });
+    }
+  });
 
   // Intercept Webflow form submission and prevent it
   myForm.onFormSubmit((data, event) => {
     // Prevent the default form submission
     event.preventDefault();
+    console.log("Form submission intercepted.");
 
-    // Check if any of the hidden fields have values (honeypot fields)
-    if (
-      data["First-Name-2"] ||
-      data["Last-Name-2"] ||
-      data["Company-2"] ||
-      data.field
-    ) {
-      // If any honeypot field contains data, show an error and prevent form submission
+    // Check the time difference between form load and submission
+    const currentTime = Date.now();
+    const timeDifference = (currentTime - formLoadTime) / 1000; // Time in seconds
+    console.log("Form submitted after:", timeDifference, "seconds");
+
+    // Define a threshold (e.g., 3 seconds) that indicates a too-quick submission
+    if (timeDifference < 3) {
+      console.log(
+        "Form submitted too quickly (under 3 seconds), blocking submission."
+      );
       myForm.showErrorState();
       const errorComponent = myForm.getErrorComponent();
       errorComponent.updateTextViaAttrVar({
-        message: "Form validation failed. Please try again.",
+        message:
+          "Form submission failed. Please do not submit the form so quickly.",
       });
       return; // Exit the function to stop the form from being submitted
+    } else {
+      console.log("Time validation passed (more than 3 seconds).");
+    }
+
+    // Check for user interaction
+    if (!formInteraction) {
+      console.log("No form interaction detected, blocking submission.");
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Please interact with the form fields before submitting.",
+      });
+      return; // Block form submission
+    } else {
+      console.log("Form interaction detected, continuing...");
+    }
+
+    // Check if any of the hidden fields have values (honeypot fields)
+    if (data.Company) {
+      console.log(
+        "Honeypot field detected (Company filled), blocking submission."
+      );
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Honeypot field was filled out.",
+      });
+      return; // Exit the function to stop the form from being submitted
+    } else {
+      console.log("Honeypot validation passed (Company field is empty).");
+    }
+
+    // Block Cyrillic or non-Latin scripts in the "Message" field
+    const nonLatinRegex = /[А-Яа-яЁё\u0600-\u06FF\u4E00-\u9FFF\u0590-\u05FF]/g;
+    if (nonLatinRegex.test(data.Message)) {
+      console.log(
+        "Non-Latin characters detected in the message, blocking submission."
+      );
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Please avoid using unsupported characters in the message.",
+      });
+      return; // Block form submission
+    } else {
+      console.log("Character validation passed (no non-Latin characters).");
     }
 
     // Execute reCAPTCHA v3 and get the token
+    console.log("Initiating reCAPTCHA validation...");
     grecaptcha.ready(function () {
       grecaptcha
         .execute("6LdYAScqAAAAADnLVL2ykyZGLwq7YGb-FARHbb85", {
           action: "submit",
         })
         .then(function (token) {
-          // Send the token to the validation endpoint
+          console.log("reCAPTCHA token received:", token);
+
+          // Send the token and form data to the Xano validation endpoint
+          console.log("Sending form data and reCAPTCHA token to Xano...");
           fetch(
             "https://x8ki-letl-twmt.n7.xano.io/api:eGiMZUV4/recaptcha/validate",
             {
@@ -53,12 +136,25 @@ export const bookProductionFormSubmissionFn = () => {
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ "g-recaptcha-response": token }),
+              body: JSON.stringify({
+                "g-recaptcha-response": token,
+                "First-Name": data["First-Name"],
+                "Last-Name": data["Last-Name"],
+                "Phone-Number": data["Phone-Number"],
+                Email: data.Email,
+                Production: data.Production,
+                Message: data.Message,
+                Company: data.Company, // Honeypot field
+              }),
             }
           )
             .then((response) => response.json())
             .then((result) => {
+              console.log("Xano response received:", result);
               if (result.status === "success") {
+                console.log(
+                  "reCAPTCHA validation successful, submitting form."
+                );
                 // Append the token to the form data
                 data["g-recaptcha-response"] = token;
 
@@ -68,6 +164,9 @@ export const bookProductionFormSubmissionFn = () => {
                 // Show the success state
                 myForm.showSuccessState();
               } else {
+                console.log(
+                  "reCAPTCHA validation failed, blocking submission."
+                );
                 // Show error message using xAtom
                 myForm.showErrorState();
                 const errorComponent = myForm.getErrorComponent();
@@ -77,7 +176,7 @@ export const bookProductionFormSubmissionFn = () => {
               }
             })
             .catch((error) => {
-              // Handle network errors and show error message
+              console.log("Error occurred during Xano API call:", error);
               myForm.showErrorState();
               const errorComponent = myForm.getErrorComponent();
               errorComponent.updateTextViaAttrVar({
@@ -85,6 +184,9 @@ export const bookProductionFormSubmissionFn = () => {
                   "An error occurred while validating reCAPTCHA. Please try again.",
               });
             });
+        })
+        .catch((error) => {
+          console.log("Error with reCAPTCHA execution:", error);
         });
     });
   });
