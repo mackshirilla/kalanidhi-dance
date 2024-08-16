@@ -27,7 +27,7 @@ export const contactFormSubmissionFn = () => {
     const timeDifference = (currentTime - formLoadTime) / 1000; // Time in seconds
 
     // Define a threshold (e.g., 3 seconds) that indicates a too-quick submission
-    if (timeDifference < 3) {
+    if (timeDifference < 10) {
       // If the form is submitted too quickly, show an error and prevent submission
       myForm.showErrorState();
       const errorComponent = myForm.getErrorComponent();
