@@ -18,6 +18,34 @@ export const contactFormSubmissionFn = () => {
     Company?: string; // Honeypot field
   }>("#contactForm");
 
+  // Flag to detect interaction with form fields
+  let formInteraction = false;
+
+  // Detect interaction with key form fields (like typing or focus)
+  const formFields = [
+    "First-Name",
+    "Last-Name",
+    "email",
+    "Phone",
+    "Subject",
+    "Message",
+  ];
+
+  formFields.forEach((field) => {
+    const fieldElement = document.querySelector(`#${field}`);
+    if (fieldElement) {
+      // Track focus and input events to detect user interaction
+      fieldElement.addEventListener("focus", () => {
+        formInteraction = true;
+        console.log(`User focused on field: ${field}`);
+      });
+      fieldElement.addEventListener("input", () => {
+        formInteraction = true;
+        console.log(`User interacted with field: ${field}`);
+      });
+    }
+  });
+
   // Intercept Webflow form submission and prevent it
   myForm.onFormSubmit((data, event) => {
     // Prevent the default form submission
@@ -27,14 +55,13 @@ export const contactFormSubmissionFn = () => {
     // Check the time difference between form load and submission
     const currentTime = Date.now();
     const timeDifference = (currentTime - formLoadTime) / 1000; // Time in seconds
-    console.log("Form submitted after:", timeDifference, "seconds"); // Log the time difference
+    console.log("Form submitted after:", timeDifference, "seconds");
 
-    // Define a threshold (e.g., 10 seconds) that indicates a too-quick submission
-    if (timeDifference < 10) {
+    // Define a threshold (e.g., 5 seconds) that indicates a too-quick submission
+    if (timeDifference < 5) {
       console.log(
-        "Form submitted too quickly (under 10 seconds), blocking submission."
-      ); // Log for quick submission
-      // If the form is submitted too quickly, show an error and prevent submission
+        "Form submitted too quickly (under 5 seconds), blocking submission."
+      );
       myForm.showErrorState();
       const errorComponent = myForm.getErrorComponent();
       errorComponent.updateTextViaAttrVar({
@@ -46,12 +73,24 @@ export const contactFormSubmissionFn = () => {
       console.log("Time validation passed (more than 10 seconds).");
     }
 
+    // Check for user interaction
+    if (!formInteraction) {
+      console.log("No form interaction detected, blocking submission.");
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Please interact with the form fields before submitting.",
+      });
+      return; // Block form submission
+    } else {
+      console.log("Form interaction detected, continuing...");
+    }
+
     // Check if the honeypot field "Company" is filled out
     if (data.Company) {
       console.log(
         "Honeypot field detected (Company filled), blocking submission."
-      ); // Log if honeypot is filled
-      // If the honeypot field contains data, show an error and prevent form submission
+      );
       myForm.showErrorState();
       const errorComponent = myForm.getErrorComponent();
       errorComponent.updateTextViaAttrVar({
@@ -62,6 +101,22 @@ export const contactFormSubmissionFn = () => {
       console.log("Honeypot validation passed (Company field is empty).");
     }
 
+    // Block Cyrillic or non-Latin scripts in the "Message" field
+    const nonLatinRegex = /[А-Яа-яЁё\u0600-\u06FF\u4E00-\u9FFF\u0590-\u05FF]/g;
+    if (nonLatinRegex.test(data.Message)) {
+      console.log(
+        "Non-Latin characters detected in the message, blocking submission."
+      );
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Please avoid using unsupported characters in the message.",
+      });
+      return; // Block form submission
+    } else {
+      console.log("Character validation passed (no non-Latin characters).");
+    }
+
     // Execute reCAPTCHA v3 and get the token
     console.log("Initiating reCAPTCHA validation...");
     grecaptcha.ready(function () {
@@ -70,7 +125,7 @@ export const contactFormSubmissionFn = () => {
           action: "submit",
         })
         .then(function (token) {
-          console.log("reCAPTCHA token received:", token); // Log reCAPTCHA token
+          console.log("reCAPTCHA token received:", token);
 
           // Send the token and form data to the Xano validation endpoint
           console.log("Sending form data and reCAPTCHA token to Xano...");
@@ -95,7 +150,7 @@ export const contactFormSubmissionFn = () => {
           )
             .then((response) => response.json())
             .then((result) => {
-              console.log("Xano response received:", result); // Log Xano response
+              console.log("Xano response received:", result);
               if (result.status === "success") {
                 console.log(
                   "reCAPTCHA validation successful, submitting form."
@@ -121,8 +176,7 @@ export const contactFormSubmissionFn = () => {
               }
             })
             .catch((error) => {
-              console.log("Error occurred during Xano API call:", error); // Log fetch error
-              // Handle network errors and show error message
+              console.log("Error occurred during Xano API call:", error);
               myForm.showErrorState();
               const errorComponent = myForm.getErrorComponent();
               errorComponent.updateTextViaAttrVar({
@@ -132,7 +186,7 @@ export const contactFormSubmissionFn = () => {
             });
         })
         .catch((error) => {
-          console.log("Error with reCAPTCHA execution:", error); // Log reCAPTCHA error
+          console.log("Error with reCAPTCHA execution:", error);
         });
     });
   });
