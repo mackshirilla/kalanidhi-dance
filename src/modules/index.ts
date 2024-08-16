@@ -3,6 +3,9 @@ declare var grecaptcha: any;
 
 // Define the form submission logic as a function
 export const contactFormSubmissionFn = () => {
+  // Store the time when the form is loaded
+  const formLoadTime = Date.now();
+
   // Initialize a new instance of WFFormComponent for the form
   const myForm = new WFFormComponent<{
     "First-Name": string;
@@ -11,12 +14,40 @@ export const contactFormSubmissionFn = () => {
     Phone: string;
     Subject: string;
     Message: string;
+    Company?: string; // Honeypot field
   }>("#contactForm");
 
   // Intercept Webflow form submission and prevent it
   myForm.onFormSubmit((data, event) => {
     // Prevent the default form submission
     event.preventDefault();
+
+    // Check the time difference between form load and submission
+    const currentTime = Date.now();
+    const timeDifference = (currentTime - formLoadTime) / 1000; // Time in seconds
+
+    // Define a threshold (e.g., 3 seconds) that indicates a too-quick submission
+    if (timeDifference < 3) {
+      // If the form is submitted too quickly, show an error and prevent submission
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message:
+          "Form submission failed. Please do not submit the form so quickly.",
+      });
+      return; // Exit the function to stop the form from being submitted
+    }
+
+    // Check if the honeypot field "Company" is filled out
+    if (data.Company) {
+      // If the honeypot field contains data, show an error and prevent form submission
+      myForm.showErrorState();
+      const errorComponent = myForm.getErrorComponent();
+      errorComponent.updateTextViaAttrVar({
+        message: "Form validation failed. Please try again.",
+      });
+      return; // Exit the function to stop the form from being submitted
+    }
 
     // Execute reCAPTCHA v3 and get the token
     grecaptcha.ready(function () {
